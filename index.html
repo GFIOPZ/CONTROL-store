@@ -297,8 +297,13 @@
         <input type="text" id="bannerSubtitle" />
         <label>نص الزر</label>
         <input type="text" id="bannerButtonTitle" placeholder="افتح" />
-        <label>معرّف التطبيق المرتبط (اختياري)</label>
-        <input type="text" id="bannerAppID" placeholder="app_id إذا يفتح تطبيق من القائمة" />
+        <label>التطبيق المرتبط (اختياري — اختر بدل ما تكتب المعرّف يدويًا)</label>
+        <select id="bannerAppID">
+          <option value="">بدون تطبيق — رابط خارجي فقط</option>
+        </select>
+        <p style="font-size:11px;color:var(--text-dim);margin:6px 0 0;">
+          هذه القائمة تعرض فقط التطبيقات اللي أضفتها من تبويب "التطبيقات" بهذه اللوحة. إذا التطبيق اللي تريده مو موجود، ضيفه أولاً من هناك ثم ارجع هنا واختره.
+        </p>
         <label>رابط خارجي (اختياري، إذا مو مرتبط بتطبيق)</label>
         <input type="text" id="bannerExternalURL" placeholder="https://t.me/..." />
         <label>ترتيب الظهور</label>
@@ -473,6 +478,7 @@ async function loadAll() {
   renderApps();
   renderBanners();
   renderSettings();
+  populateAppIDSelect(document.getElementById('bannerAppID').value);
 }
 
 // ---------------------------------------------------------------------------
@@ -565,6 +571,7 @@ function saveAppEntry(e) {
   else CACHE.apps.apps.push(entry);
   clearAppForm();
   renderApps();
+  populateAppIDSelect(document.getElementById('bannerAppID').value);
   showStatus('تمت الإضافة/التعديل محليًا — اضغط "رفع التغييرات" للحفظ على GitHub.', 'ok');
   return false;
 }
@@ -599,10 +606,18 @@ function clearBannerForm() {
   document.getElementById('bannerTitle').value = '';
   document.getElementById('bannerSubtitle').value = '';
   document.getElementById('bannerButtonTitle').value = '';
-  document.getElementById('bannerAppID').value = '';
+  populateAppIDSelect('');
   document.getElementById('bannerExternalURL').value = '';
   document.getElementById('bannerSortOrder').value = '0';
   document.getElementById('bannerEnabled').checked = true;
+}
+
+function populateAppIDSelect(selectedID) {
+  const sel = document.getElementById('bannerAppID');
+  const apps = (CACHE.apps && CACHE.apps.apps) || [];
+  sel.innerHTML = '<option value="">بدون تطبيق — رابط خارجي فقط</option>' +
+    apps.map(a => `<option value="${a.id}">${escapeHTML(a.name)}</option>`).join('');
+  sel.value = selectedID || '';
 }
 
 function editBanner(id) {
@@ -613,7 +628,7 @@ function editBanner(id) {
   document.getElementById('bannerTitle').value = b.title || '';
   document.getElementById('bannerSubtitle').value = b.subtitle || '';
   document.getElementById('bannerButtonTitle').value = b.button_title || '';
-  document.getElementById('bannerAppID').value = b.app_id || '';
+  populateAppIDSelect(b.app_id || '');
   document.getElementById('bannerExternalURL').value = b.external_url || '';
   document.getElementById('bannerSortOrder').value = b.sort_order || 0;
   document.getElementById('bannerEnabled').checked = !!b.enabled;
