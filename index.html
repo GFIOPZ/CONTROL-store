@@ -5,10 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>لوحة تحكم NOVA STORE VIP</title>
 <style>
-  :root {
-    --grad-start: #7C3AED; --grad-end: #A855F7; --bg: #0b0b12; --card: #15151f; --card-2: #1c1c29;
-    --text: #f2f2f7; --text-dim: #9a9aac; --border: rgba(255,255,255,0.08); --danger: #ef4444; --ok: #22c55e;
-  }
+  :root { --grad-start: #7C3AED; --grad-end: #A855F7; --bg: #0b0b12; --card: #15151f; --card-2: #1c1c29; --text: #f2f2f7; --text-dim: #9a9aac; --border: rgba(255,255,255,0.08); --danger: #ef4444; --ok: #22c55e; }
   * { box-sizing: border-box; }
   body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
   header { padding: 28px 20px 20px; background: linear-gradient(135deg, var(--grad-start), var(--grad-end)); text-align: center; box-shadow: 0 6px 24px rgba(124,58,237,0.35); }
@@ -51,7 +48,7 @@
 
 <header>
   <h1>لوحة تحكم NOVA STORE</h1>
-  <p>إدارة التطبيقات، البنرات، واشتراكات الـ VIP (آمنة)</p>
+  <p>إدارة التطبيقات والبنرات واشتراكات الـ VIP (المستودع الخاص)</p>
 </header>
 
 <div class="container">
@@ -109,12 +106,11 @@
             <input type="number" id="vipDuration" placeholder="الرقم" required />
             <select id="vipDurationType" style="flex: 0.5;">
                 <option value="days">أيام</option>
-                <option value="minutes">دقائق (للتجربة)</option>
+                <option value="minutes">دقائق</option>
                 <option value="months">أشهر</option>
             </select>
         </div>
 
-        <!-- استيراد الشهادات -->
         <div style="border-top: 1px solid var(--border); margin: 16px 0; padding-top: 10px;">
             <h3 style="font-size: 14px; margin: 0 0 10px; color: var(--grad-end);">إرفاق الشهادة (تُثبت للمستخدم تلقائياً)</h3>
             <label>ملف الشهادة (.p12)</label>
@@ -126,10 +122,10 @@
         </div>
 
         <div class="toggle-row" style="margin-top:12px;">
-          <span style="font-size:13px;">الحساب مفعّل (يستطيع الدخول)</span>
+          <span style="font-size:13px;">الحساب مفعّل</span>
           <label class="switch"><input type="checkbox" id="vipEnabled" checked><span class="slider"></span></label>
         </div>
-        <button class="btn-primary" type="submit">حفظ الحساب بأمان</button>
+        <button class="btn-primary" type="submit">حفظ الحساب بالقائمة</button>
       </form>
     </div>
 
@@ -234,8 +230,6 @@ let CFG = { owner: '', repo: '', branch: 'main', token: '' };
 let CACHE = { vip: null, apps: null, banners: null, settings: null };
 let SHA = { vip: null, apps: null, banners: null, settings: null };
 
-let decryptedVIPAccounts = [];
-
 function loadConfig() {
   const saved = JSON.parse(localStorage.getItem('nova.panel.config') || '{}');
   CFG = { owner: saved.owner || 'GFIOPZ', repo: saved.repo || 'NOVA-STORE', branch: saved.branch || 'main', token: saved.token || '' };
@@ -250,31 +244,25 @@ function saveConfig() {
   CFG.repo = document.getElementById('cfgRepo').value.trim();
   CFG.branch = document.getElementById('cfgBranch').value.trim() || 'main';
   CFG.token = document.getElementById('cfgToken').value.trim();
-  
   localStorage.setItem('nova.panel.config', JSON.stringify(CFG));
   showStatus('تم حفظ الإعدادات. جاري الاتصال...', 'ok');
   loadAll();
 }
 
-// دالة التشفير وفك التشفير باستخدام Base64 المزدوج للسهولة والأمان المقبول
-function encodeData(dataObject) {
-    const jsonStr = JSON.stringify(dataObject);
-    return btoa(unescape(encodeURIComponent(jsonStr)));
-}
-
-function decodeData(encodedString) {
-    try {
-        const jsonStr = decodeURIComponent(escape(atob(encodedString)));
-        return JSON.parse(jsonStr);
-    } catch (e) {
-        console.error("فشل قراءة البيانات المشفرة", e);
-        return null;
-    }
-}
-
 function apiURL(path) { return `https://api.github.com/repos/${CFG.owner}/${CFG.repo}/contents/${path}?ref=${CFG.branch}`; }
-function utf8ToBase64(str) { return btoa(unescape(encodeURIComponent(str))); }
-function base64ToUtf8(b64) { return decodeURIComponent(escape(atob(b64.replace(/\n/g, '')))); }
+
+// دعم قوي للغة العربية باستخدام encodeURIComponent الحديث
+function utf8ToBase64(str) { 
+    return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(match, p1) {
+        return String.fromCharCode('0x' + p1);
+    }));
+}
+
+function base64ToUtf8(b64) {
+    return decodeURIComponent(atob(b64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+}
 
 function encodeFileAsBase64(element, targetId) {
     const file = element.files[0];
@@ -292,8 +280,8 @@ async function ghGet(path) {
   if (res.status === 404) return { exists: false, json: null, sha: null };
   if (!res.ok) throw new Error(`GitHub error (${res.status}) على ${path}`);
   const data = await res.json();
-  const json = JSON.parse(base64ToUtf8(data.content));
-  return { exists: true, json, sha: data.sha };
+  const jsonStr = base64ToUtf8(data.content);
+  return { exists: true, json: JSON.parse(jsonStr), sha: data.sha };
 }
 
 async function ghPut(path, json, sha, message) {
@@ -312,7 +300,7 @@ function nowISO() { return new Date().toISOString(); }
 
 function defaultFor(kind) {
   switch (kind) {
-    case 'vip': return { version: 1, updated_at: nowISO(), secure_accounts: [] };
+    case 'vip': return { version: 1, updated_at: nowISO(), accounts: [] };
     case 'apps': return { version: 1, updated_at: nowISO(), apps: [] };
     case 'banners': return { version: 1, updated_at: nowISO(), banners: [] };
     case 'settings': return { version: 1, updated_at: nowISO(), store: { name: 'NOVA STORE', support_channel: '', latest_apps_limit: 10, maintenance: false } };
@@ -331,7 +319,7 @@ async function initRepo() {
       }
     } catch (e) {}
   }
-  showStatus('المستودع جاهز.', 'ok');
+  showStatus('تمت تهيئة جميع الملفات بنجاح.', 'ok');
   await loadAll();
 }
 
@@ -345,14 +333,6 @@ async function loadAll() {
     } catch (e) {
       showStatus(`تعذر تحميل ${kind}.json: ${e.message}`, 'err');
     }
-  }
-  
-  decryptedVIPAccounts = [];
-  if (CACHE.vip && CACHE.vip.secure_accounts) {
-      CACHE.vip.secure_accounts.forEach(encItem => {
-          const dec = decodeData(encItem.data);
-          if(dec) decryptedVIPAccounts.push(dec);
-      });
   }
 
   renderVIP(); renderApps(); renderBanners(); renderSettings();
@@ -371,10 +351,11 @@ function generateCode() {
 
 function renderVIP() {
   const list = document.getElementById('vipsList');
-  document.getElementById('vipsCount').textContent = decryptedVIPAccounts.length;
-  if (decryptedVIPAccounts.length === 0) { list.innerHTML = '<div class="empty">لا توجد حسابات VIP.</div>'; return; }
+  const accounts = (CACHE.vip && CACHE.vip.accounts) || [];
+  document.getElementById('vipsCount').textContent = accounts.length;
+  if (accounts.length === 0) { list.innerHTML = '<div class="empty">لا توجد حسابات VIP.</div>'; return; }
   
-  list.innerHTML = decryptedVIPAccounts.map(a => {
+  list.innerHTML = accounts.map(a => {
       let isExpired = false;
       let expText = "";
       if (a.created_at && a.duration && a.duration_type) {
@@ -411,7 +392,7 @@ function renderVIP() {
 }
 
 function editVIP(id) {
-  const a = decryptedVIPAccounts.find(x => x.id === id); if (!a) return;
+  const a = CACHE.vip.accounts.find(x => x.id === id); if (!a) return;
   document.getElementById('vipEditId').value = a.id;
   document.getElementById('vipName').value = a.name;
   document.getElementById('vipUsername').value = a.username;
@@ -429,15 +410,16 @@ function editVIP(id) {
 
 function deleteVIP(id) {
   if (!confirm('حذف هذا الحساب؟')) return;
-  decryptedVIPAccounts = decryptedVIPAccounts.filter(x => x.id !== id);
-  syncVIPCache(); renderVIP(); showStatus('تم الحذف محليًا.', 'ok');
+  CACHE.vip.accounts = CACHE.vip.accounts.filter(x => x.id !== id);
+  renderVIP(); showStatus('تم الحذف محليًا.', 'ok');
 }
 
 function saveVipEntry(e) {
   e.preventDefault();
+  if(!CACHE.vip) CACHE.vip = defaultFor('vip');
   
   const id = document.getElementById('vipEditId').value || 'vip-' + Date.now().toString(36);
-  const oldEntry = decryptedVIPAccounts.find(x => x.id === id);
+  const oldEntry = CACHE.vip.accounts.find(x => x.id === id);
   const newP12 = document.getElementById('vipP12Base64').value.trim();
   const newProv = document.getElementById('vipProvBase64').value.trim();
 
@@ -456,9 +438,9 @@ function saveVipEntry(e) {
     created_at: document.getElementById('vipCreatedAt').value || nowISO()
   };
   
-  const idx = decryptedVIPAccounts.findIndex(x => x.id === id);
-  if (idx >= 0) decryptedVIPAccounts[idx] = entry;
-  else decryptedVIPAccounts.push(entry);
+  const idx = CACHE.vip.accounts.findIndex(x => x.id === id);
+  if (idx >= 0) CACHE.vip.accounts[idx] = entry;
+  else CACHE.vip.accounts.push(entry);
   
   document.getElementById('vipEditId').value = ''; document.getElementById('vipName').value = '';
   document.getElementById('vipUsername').value = ''; document.getElementById('vipPassword').value = '';
@@ -468,37 +450,158 @@ function saveVipEntry(e) {
   document.getElementById('vipProvFile').value = ''; document.getElementById('vipCreatedAt').value = '';
   document.getElementById('vipEnabled').checked = true;
   
-  syncVIPCache(); renderVIP();
+  renderVIP();
   showStatus('تم الحفظ محليًا — اضغط "رفع التغييرات" للحفظ.', 'ok');
   return false;
 }
 
-function syncVIPCache() {
-    if(!CACHE.vip) CACHE.vip = defaultFor('vip');
-    CACHE.vip.secure_accounts = decryptedVIPAccounts.map(acc => {
-        return { id: acc.id, data: encodeData(acc) };
-    });
+// -- Apps & Banners & Settings --
+function renderApps() {
+  const list = document.getElementById('appsList');
+  const apps = (CACHE.apps && CACHE.apps.apps) || [];
+  document.getElementById('appsCount').textContent = apps.length;
+  if (apps.length === 0) { list.innerHTML = '<div class="empty">لا توجد تطبيقات بعد.</div>'; return; }
+  list.innerHTML = apps.map(a => `
+    <div class="item">
+      <div class="item-head">
+        <div class="name">${escapeHTML(a.name)}
+          <span class="badge ${a.enabled ? 'on' : 'off'}">${a.enabled ? 'مفعّل' : 'معطّل'}</span>
+        </div>
+        <div class="actions">
+          <button class="btn-secondary btn-small" onclick="editApp('${a.id}')">تعديل</button>
+          <button class="btn-danger btn-small" onclick="deleteApp('${a.id}')">حذف</button>
+        </div>
+      </div>
+      <div class="item-sub">${escapeHTML(a.subtitle || '')} ${a.version ? 'v' + escapeHTML(a.version) : ''}</div>
+    </div>
+  `).join('');
 }
 
-// -- Apps & Banners & Settings Functions --
-function renderApps() { /* Code remains */ }
-function editApp(id) { /* Code remains */ }
-function deleteApp(id) { /* Code remains */ }
-function saveAppEntry(e) { /* Code remains */ return false; }
-function renderBanners() { /* Code remains */ }
-function editBanner(id) { /* Code remains */ }
-function deleteBanner(id) { /* Code remains */ }
-function saveBannerEntry(e) { /* Code remains */ return false; }
-function renderSettings() { /* Code remains */ }
-function collectSettings() { /* Code remains */ }
-function populateAppIDSelect(id) { /* Code remains */ }
+function clearAppForm() {
+  document.getElementById('appEditId').value = ''; document.getElementById('appName').value = '';
+  document.getElementById('appSubtitle').value = ''; document.getElementById('appDescription').value = '';
+  document.getElementById('appIcon').value = ''; document.getElementById('appVersion').value = '';
+  document.getElementById('appSize').value = ''; document.getElementById('appIpaURL').value = '';
+  document.getElementById('appEnabled').checked = true;
+}
+
+function editApp(id) {
+  const a = CACHE.apps.apps.find(x => x.id === id); if (!a) return;
+  document.getElementById('appEditId').value = a.id; document.getElementById('appName').value = a.name || '';
+  document.getElementById('appSubtitle').value = a.subtitle || ''; document.getElementById('appDescription').value = a.description || '';
+  document.getElementById('appIcon').value = a.icon || ''; document.getElementById('appVersion').value = a.version || '';
+  document.getElementById('appSize').value = a.size || ''; document.getElementById('appIpaURL').value = a.ipa_url || '';
+  document.getElementById('appEnabled').checked = !!a.enabled;
+  switchTab('apps'); window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function deleteApp(id) {
+  if (!confirm('حذف هذا التطبيق؟')) return;
+  CACHE.apps.apps = CACHE.apps.apps.filter(x => x.id !== id);
+  renderApps(); showStatus('تم الحذف محليًا.', 'ok');
+}
+
+function saveAppEntry(e) {
+  e.preventDefault();
+  if (!CACHE.apps) CACHE.apps = defaultFor('apps');
+  const id = document.getElementById('appEditId').value || slugify(document.getElementById('appName').value) + '-' + Date.now().toString(36);
+  const entry = {
+    id, name: document.getElementById('appName').value.trim(), subtitle: document.getElementById('appSubtitle').value.trim(),
+    description: document.getElementById('appDescription').value.trim(), icon: document.getElementById('appIcon').value.trim(),
+    version: document.getElementById('appVersion').value.trim(), size: document.getElementById('appSize').value.trim(),
+    ipa_url: document.getElementById('appIpaURL').value.trim(), enabled: document.getElementById('appEnabled').checked,
+    updated_at: nowISO()
+  };
+  const idx = CACHE.apps.apps.findIndex(x => x.id === id);
+  if (idx >= 0) CACHE.apps.apps[idx] = entry; else CACHE.apps.apps.push(entry);
+  clearAppForm(); renderApps(); populateAppIDSelect(document.getElementById('bannerAppID').value);
+  showStatus('تم الحفظ محليًا.', 'ok'); return false;
+}
+
+function renderBanners() {
+  const list = document.getElementById('bannersList');
+  const banners = (CACHE.banners && CACHE.banners.banners) || [];
+  document.getElementById('bannersCount').textContent = banners.length;
+  if (banners.length === 0) { list.innerHTML = '<div class="empty">لا توجد بنرات بعد.</div>'; return; }
+  list.innerHTML = banners.slice().sort((a,b)=>a.sort_order-b.sort_order).map(b => `
+    <div class="item">
+      <div class="item-head">
+        <div class="name">${escapeHTML(b.title)} <span class="badge ${b.enabled ? 'on' : 'off'}">${b.enabled ? 'مفعّل' : 'معطّل'}</span></div>
+        <div class="actions">
+          <button class="btn-secondary btn-small" onclick="editBanner('${b.id}')">تعديل</button>
+          <button class="btn-danger btn-small" onclick="deleteBanner('${b.id}')">حذف</button>
+        </div>
+      </div>
+      <div class="item-sub">${escapeHTML(b.subtitle || '')}</div>
+    </div>
+  `).join('');
+}
+
+function clearBannerForm() {
+  document.getElementById('bannerEditId').value = ''; document.getElementById('bannerImage').value = '';
+  document.getElementById('bannerTitle').value = ''; document.getElementById('bannerSubtitle').value = '';
+  document.getElementById('bannerButtonTitle').value = ''; document.getElementById('bannerExternalURL').value = '';
+  document.getElementById('bannerSortOrder').value = '0'; document.getElementById('bannerEnabled').checked = true;
+  populateAppIDSelect('');
+}
+
+function populateAppIDSelect(selectedID) {
+  const sel = document.getElementById('bannerAppID');
+  const apps = (CACHE.apps && CACHE.apps.apps) || [];
+  sel.innerHTML = '<option value="">بدون تطبيق — رابط خارجي فقط</option>' + apps.map(a => `<option value="${a.id}">${escapeHTML(a.name)}</option>`).join('');
+  sel.value = selectedID || '';
+}
+
+function editBanner(id) {
+  const b = CACHE.banners.banners.find(x => x.id === id); if (!b) return;
+  document.getElementById('bannerEditId').value = b.id; document.getElementById('bannerImage').value = b.image_url || '';
+  document.getElementById('bannerTitle').value = b.title || ''; document.getElementById('bannerSubtitle').value = b.subtitle || '';
+  document.getElementById('bannerButtonTitle').value = b.button_title || ''; populateAppIDSelect(b.app_id || '');
+  document.getElementById('bannerExternalURL').value = b.external_url || ''; document.getElementById('bannerSortOrder').value = b.sort_order || 0;
+  document.getElementById('bannerEnabled').checked = !!b.enabled;
+  switchTab('banners'); window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function deleteBanner(id) {
+  if (!confirm('حذف هذا البنر؟')) return;
+  CACHE.banners.banners = CACHE.banners.banners.filter(x => x.id !== id);
+  renderBanners(); showStatus('تم الحذف محليًا.', 'ok');
+}
+
+function saveBannerEntry(e) {
+  e.preventDefault();
+  if (!CACHE.banners) CACHE.banners = defaultFor('banners');
+  const id = document.getElementById('bannerEditId').value || 'banner-' + Date.now().toString(36);
+  const appID = document.getElementById('bannerAppID').value.trim();
+  const entry = {
+    id, image_url: document.getElementById('bannerImage').value.trim(), title: document.getElementById('bannerTitle').value.trim(),
+    subtitle: document.getElementById('bannerSubtitle').value.trim(), description: '', action_type: appID ? 'app' : 'external',
+    app_id: appID || null, external_url: document.getElementById('bannerExternalURL').value.trim(), button_title: document.getElementById('bannerButtonTitle').value.trim(),
+    sort_order: parseInt(document.getElementById('bannerSortOrder').value || '0', 10), enabled: document.getElementById('bannerEnabled').checked
+  };
+  const idx = CACHE.banners.banners.findIndex(x => x.id === id);
+  if (idx >= 0) CACHE.banners.banners[idx] = entry; else CACHE.banners.banners.push(entry);
+  clearBannerForm(); renderBanners(); showStatus('تم الحفظ محليًا.', 'ok'); return false;
+}
+
+function renderSettings() {
+  if (!CACHE.settings) return; const s = CACHE.settings.store || {};
+  document.getElementById('setName').value = s.name || 'NOVA STORE'; document.getElementById('setSupportChannel').value = s.support_channel || '';
+  document.getElementById('setLatestLimit').value = s.latest_apps_limit ?? 10; document.getElementById('setMaintenance').checked = !!s.maintenance;
+}
+
+function collectSettings() {
+  if (!CACHE.settings) CACHE.settings = defaultFor('settings');
+  CACHE.settings.store = {
+    name: document.getElementById('setName').value.trim() || 'NOVA STORE', support_channel: document.getElementById('setSupportChannel').value.trim(),
+    latest_apps_limit: parseInt(document.getElementById('setLatestLimit').value || '10', 10), maintenance: document.getElementById('setMaintenance').checked
+  };
+}
 
 async function publish(kind) {
   if (!CFG.token) { showStatus('أدخل التوكن أولاً واحفظ الإعدادات.', 'err'); return; }
   try {
     if (kind === 'settings') collectSettings();
-    if (kind === 'vip') syncVIPCache(); 
-    
     CACHE[kind].updated_at = nowISO();
     showStatus('جاري الرفع إلى GitHub...', 'ok');
     const result = await ghPut(`${kind}.json`, CACHE[kind], SHA[kind], `تحديث ${kind}.json`);
